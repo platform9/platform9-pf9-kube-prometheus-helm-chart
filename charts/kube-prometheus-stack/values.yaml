@@ -717,16 +717,16 @@ grafana:
   dashboards:
       default:
         explorer:
-          url: https://raw.githubusercontent.com/mayuresh108/argocd-repos/master/grafana/grafana-dashboard-cluster-explorer
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-cluster-explorer
           token: ''
         kubernetes:
-          url: https://raw.githubusercontent.com/mayuresh108/argocd-repos/master/grafana/grafana-dashboard-kubernetes
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-kubernetes
           token: ''
         memusage:
-          url: https://raw.githubusercontent.com/mayuresh108/argocd-repos/master/grafana/grafana-dashboard-memusage
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-memusage
           token: ''
         node-exporter:
-          url: https://raw.githubusercontent.com/mayuresh108/argocd-repos/master/grafana/grafana-dashboard-node-exporter
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-node-exporter
           token: ''
 
   dashboardProviders:
