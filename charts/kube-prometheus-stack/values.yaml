@@ -899,7 +899,69 @@ alertmanager:
 ##
 grafana:
   enabled: true
-  namespaceOverride: ""
+
+  namespaceOverride: "pf9-monitoring"
+  # ------------------------------------ PF9 Customizations -------------------------------------
+  grafana.ini:
+    paths:
+      data: /var/lib/grafana/
+      logs: /var/log/grafana
+      plugins: /var/lib/grafana/plugins
+      provisioning: /etc/grafana/provisioning
+    analytics:
+      check_for_updates: true
+    log:
+      mode: console
+    grafana_net:
+      url: https://grafana.net
+    # auth.google:
+    #   enabled: true
+    #   client_id: CLIENT_ID
+    #   client_secret: CLIENT_SECRET
+    #   scopes: https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email
+    #   auth_url: https://accounts.google.com/o/oauth2/auth
+    #   token_url: https://accounts.google.com/o/oauth2/token
+    #   allowed_domains: mycompany.com mycompany.org
+    #   allow_sign_up: true
+    # server:
+    #   root_url: http://grafana.pmk.cluster
+
+  # persistence:
+  #   type: pvc
+  #   enabled: true
+  #   storageClassName: default
+  #   accessModes:
+  #     - ReadWriteOnce
+  #   size: 1Gi
+
+  dashboards:
+      default:
+        explorer:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-cluster-explorer
+          token: ''
+        kubernetes:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-kubernetes
+          token: ''
+        memusage:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-memusage
+          token: ''
+        node-exporter:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-node-exporter
+          token: ''
+
+  dashboardProviders:
+     dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  # ------------------------------------ PF9 Customizations -------------------------------------
 
   ## ForceDeployDatasources Create datasource configmap even if grafana deployment has been disabled
   ##
