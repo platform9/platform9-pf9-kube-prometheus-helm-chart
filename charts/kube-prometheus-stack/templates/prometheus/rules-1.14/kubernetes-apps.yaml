@@ -53,6 +53,43 @@ spec:
         {{- end }}
       {{- end }}
 {{- end }}
+{{- if not (.Values.defaultRules.disabled.KubePodOOMKilled | default false) }}
+    - alert: KubePodOOMKilled
+      annotations:
+{{- if .Values.defaultRules.additionalRuleAnnotations }}
+{{ toYaml .Values.defaultRules.additionalRuleAnnotations | indent 8 }}
+{{- end }} --
+description: 'Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} ({{`{{`}} $labels.container {{`}}`}}) has been OOMKilled.'
+        runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/kubepodoomkilled
+        summary: Pod has been OOMKilled for more than 15 minutes.
+      expr: |-
+      count by (cluster,namespace,pod,container)(
+        kube_pod_container_status_last_terminated_reason{job='ksm', reason='OOMKilled'} offset 5m) > 0
+      for: 15m
+      labels:
+        severity: warning
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+{{- end }}
+{{- if not (.Values.defaultRules.disabled.KubePodCrashLoopingThreshold | default false) }}
+    - alert: KubePodCrashLoopingThreshold
+      annotations:
+{{- if .Values.defaultRules.additionalRuleAnnotations }}
+{{ toYaml .Values.defaultRules.additionalRuleAnnotations | indent 8 }}
+{{- end }} --
+description: Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} in CrashLoopBackOff state, crossed the threshold value for restarts.
+        runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/kubepodcrashloopingthreshold
+        summary: Number of Pod restarts has crossed the threshold value set for time-span of 15 minutes.
+      expr: |-
+      increase(kube_pod_container_status_restarts_total{job='ksm'}[15m] offset 5m) > 2
+      for: 15m
+      labels:
+        severity: warning
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+{{- end }}
 {{- if not (.Values.defaultRules.disabled.KubePodNotReady | default false) }}
     - alert: KubePodNotReady
       annotations:
