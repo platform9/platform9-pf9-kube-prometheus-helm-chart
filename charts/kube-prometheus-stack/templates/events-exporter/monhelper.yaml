@@ -111,7 +111,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
-        image: platform9/monhelper:v2.0.0
+        image: platform9/monhelper:v2.0.2
         imagePullPolicy: IfNotPresent
         name: monhelper
         ports:
