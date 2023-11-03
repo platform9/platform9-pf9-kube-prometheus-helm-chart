@@ -47,13 +47,11 @@ spec:
       annotations:
 {{- if .Values.defaultRules.additionalRuleAnnotations }}
 {{ toYaml .Values.defaultRules.additionalRuleAnnotations | indent 8 }}
-{{- end }} --
-description: 'Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} ({{`{{`}} $labels.container {{`}}`}}) has been OOMKilled.'
+{{- end }} 
+        description: 'Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} ({{`{{`}} $labels.container {{`}}`}}) has been OOMKilled.'
         runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/kubepodoomkilled
         summary: Pod has been OOMKilled for more than 15 minutes.
-      expr: |-
-      count by (cluster,namespace,pod,container)(
-        kube_pod_container_status_last_terminated_reason{job='ksm', reason='OOMKilled'} offset 5m) > 0
+      expr: count by (cluster,namespace,pod,container)(kube_pod_container_status_last_terminated_reason{job='kube-state-metrics', reason='OOMKilled'} offset 5m) > 0
       for: 15m
       labels:
         severity: warning
@@ -66,12 +64,11 @@ description: 'Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}
       annotations:
 {{- if .Values.defaultRules.additionalRuleAnnotations }}
 {{ toYaml .Values.defaultRules.additionalRuleAnnotations | indent 8 }}
-{{- end }} --
-description: Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} in CrashLoopBackOff state, crossed the threshold value for restarts.
+{{- end }} 
+        description: Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} in CrashLoopBackOff state, crossed the threshold value for restarts.
         runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/kubepodcrashloopingthreshold
         summary: Number of Pod restarts has crossed the threshold value set for time-span of 15 minutes.
-      expr: |-
-      increase(kube_pod_container_status_restarts_total{job='ksm'}[15m] offset 5m) > 2
+      expr: increase(kube_pod_container_status_restarts_total{job='kube-state-metrics'}[15m] offset 5m) > 2
       for: 15m
       labels:
         severity: warning
