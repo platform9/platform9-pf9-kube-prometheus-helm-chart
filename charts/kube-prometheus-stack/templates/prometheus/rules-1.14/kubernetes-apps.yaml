@@ -64,20 +64,11 @@ spec:
       annotations:
 {{- if .Values.defaultRules.additionalRuleAnnotations }}
 {{ toYaml .Values.defaultRules.additionalRuleAnnotations | indent 8 }}
-<<<<<<< HEAD
-{{- end }} --
-description: Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} in CrashLoopBackOff state, crossed the threshold value for restarts.
-        runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/kubepodcrashloopingthreshold
-        summary: Number of Pod restarts has crossed the threshold value set for time-span of 15 minutes.
-      expr: |-
-      increase(kube_pod_container_status_restarts_total{job='ksm'}[15m] offset 5m) > 2
-=======
 {{- end }} 
         description: Pod {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} in CrashLoopBackOff state, crossed the threshold value for restarts.
         runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/kubepodcrashloopingthreshold
         summary: Number of Pod restarts has crossed the threshold value set for time-span of 15 minutes.
       expr: increase(kube_pod_container_status_restarts_total{job='kube-state-metrics'}[15m] offset 5m) > 2
->>>>>>> 4e4304c (Adding two new alerts)
       for: 15m
       labels:
         severity: warning
