@@ -4,11 +4,11 @@
 
 ## Provide a name in place of kube-prometheus-stack for `app:` labels
 ##
-nameOverride: ""
+nameOverride: "pf9-prometheus-stack"
 
 ## Override the deployment namespace
 ##
-namespaceOverride: ""
+namespaceOverride: "pf9-monitoring"
 
 ## Provide a k8s version to auto dashboard import script example: kubeTargetVersionOverride: 1.26.6
 ##
@@ -20,7 +20,7 @@ kubeVersionOverride: ""
 
 ## Provide a name to substitute for the full names of resources
 ##
-fullnameOverride: ""
+fullnameOverride: "pf9-prom"
 
 ## Labels to apply to all resources
 ##
@@ -39,8 +39,8 @@ defaultRules:
   create: true
   rules:
     alertmanager: true
-    etcd: true
-    configReloaders: true
+    etcd: false
+    configReloaders: false
     general: true
     k8s: true
     kubeApiserverAvailability: true
@@ -49,7 +49,7 @@ defaultRules:
     kubeApiserverSlos: true
     kubeControllerManager: true
     kubelet: true
-    kubeProxy: true
+    kubeProxy: false
     kubePrometheusGeneral: true
     kubePrometheusNodeRecording: true
     kubernetesApps: true
@@ -63,8 +63,8 @@ defaultRules:
     node: true
     nodeExporterAlerting: true
     nodeExporterRecording: true
-    prometheus: true
-    prometheusOperator: true
+    prometheus: false
+    prometheusOperator: false
     windows: true
 
   ## Reduce app namespace alert scope
@@ -297,7 +297,7 @@ alertmanager:
       group_by: ['namespace']
       group_wait: 30s
       group_interval: 5m
-      repeat_interval: 12h
+      repeat_interval: 5m
       receiver: 'null'
       routes:
       - receiver: 'null'
@@ -525,7 +525,7 @@ alertmanager:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
-    selfMonitor: true
+    selfMonitor: false
 
     ## Additional labels
     ##
@@ -899,7 +899,68 @@ alertmanager:
 ##
 grafana:
   enabled: true
-  namespaceOverride: ""
+  namespaceOverride: "pf9-monitoring"
+  # ------------------------------------ PF9 Customizations -------------------------------------
+  grafana.ini:
+    paths:
+      data: /var/lib/grafana/
+      logs: /var/log/grafana
+      plugins: /var/lib/grafana/plugins
+      provisioning: /etc/grafana/provisioning
+    analytics:
+      check_for_updates: true
+    log:
+      mode: console
+    grafana_net:
+      url: https://grafana.net
+    # auth.google:
+    #   enabled: true
+    #   client_id: CLIENT_ID
+    #   client_secret: CLIENT_SECRET
+    #   scopes: https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email
+    #   auth_url: https://accounts.google.com/o/oauth2/auth
+    #   token_url: https://accounts.google.com/o/oauth2/token
+    #   allowed_domains: mycompany.com mycompany.org
+    #   allow_sign_up: true
+    # server:
+    #   root_url: http://grafana.pmk.cluster
+
+  # persistence:
+  #   type: pvc
+  #   enabled: true
+  #   storageClassName: default
+  #   accessModes:
+  #     - ReadWriteOnce
+  #   size: 1Gi
+
+  dashboards:
+      default:
+        explorer:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-cluster-explorer
+          token: ''
+        kubernetes:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-kubernetes
+          token: ''
+        memusage:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-memusage
+          token: ''
+        node-exporter:
+          url: https://raw.githubusercontent.com/platform9/pf9-kube-prometheus-helm-chart/main/charts/kube-prometheus-stack/grafana/grafana-dashboard-node-exporter
+          token: ''
+
+  dashboardProviders:
+     dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  # ------------------------------------ PF9 Customizations -------------------------------------
 
   ## ForceDeployDatasources Create datasource configmap even if grafana deployment has been disabled
   ##
@@ -918,7 +979,7 @@ grafana:
   ##
   defaultDashboardsTimezone: utc
 
-  adminPassword: prom-operator
+  adminPassword: admin
 
   rbac:
     ## If true, Grafana PSPs will be created
@@ -1054,12 +1115,13 @@ grafana:
   ##
   service:
     portName: http-web
+    type: NodePort
 
   serviceMonitor:
     # If true, a ServiceMonitor CRD is created for a prometheus operator
     # https://github.com/coreos/prometheus-operator
     #
-    enabled: true
+    enabled: false
 
     # Path to use for scraping metrics. Might be different if server.root_url is set
     # in grafana.ini
@@ -1068,6 +1130,7 @@ grafana:
     #  namespace: monitoring  (defaults to use the namespace this chart is deployed to)
 
     # labels for the ServiceMonitor
+    # release: {{ .Release.Name }}
     labels: {}
 
     # Scrape interval. If not set, the Prometheus default scrape interval is used.
@@ -1092,6 +1155,22 @@ grafana:
 ##
 kubernetesServiceMonitors:
   enabled: true
+
+calico:
+  enabled: true
+  serviceMonitor: {}
+
+events:
+  enabled: true
+  port: 8080
+  portName: web
+  labels: "mon-helper"
+  dashboardEnabled: true
+
+  namespaceOverride: "pf9-monitoring"
+  serviceMonitor:
+    interval: ""
+    selfMonitor: true
 
 ## Component scraping the kube api server
 ##
@@ -1620,8 +1699,8 @@ kubeEtcd:
   ##
   service:
     enabled: true
-    port: 2381
-    targetPort: 2381
+    port: 2379
+    targetPort: 2379
     # selector:
     #   component: etcd
 
@@ -1868,7 +1947,7 @@ kubeStateMetrics:
 ## Configuration for kube-state-metrics subchart
 ##
 kube-state-metrics:
-  namespaceOverride: ""
+  namespaceOverride: "pf9-monitoring"
   rbac:
     create: true
   releaseLabel: true
@@ -1947,7 +2026,7 @@ nodeExporter:
 ## Configuration for prometheus-node-exporter subchart
 ##
 prometheus-node-exporter:
-  namespaceOverride: ""
+  namespaceOverride: "pf9-monitoring"
   podLabels:
     ## Add the 'node-exporter' label to be used by serviceMonitor to match standard common usage in rules and grafana dashboards
     ##
@@ -2033,7 +2112,7 @@ prometheusOperator:
   ## Prometheus-Operator v0.39.0 and later support TLS natively.
   ##
   tls:
-    enabled: true
+    enabled: false
     # Value must match version names from https://golang.org/pkg/crypto/tls/#pkg-constants
     tlsMinVersion: VersionTLS13
     # The default webhook port is 10250 in order to work out-of-the-box in GKE private clusters and avoid adding firewall rules.
@@ -2044,10 +2123,10 @@ prometheusOperator:
   admissionWebhooks:
     ## Valid values: Fail, Ignore, IgnoreOnInstallOnly
     ## IgnoreOnInstallOnly - If Release.IsInstall returns "true", set "Ignore" otherwise "Fail"
-    failurePolicy: ""
+    failurePolicy: Fail
     ## The default timeoutSeconds is 10 and the maximum value is 30.
     timeoutSeconds: 10
-    enabled: true
+    enabled: false
     ## A PEM encoded CA bundle which will be used to validate the webhook's server certificate.
     ## If unspecified, system trust roots on the apiserver are used.
     caBundle: ""
@@ -2059,7 +2138,7 @@ prometheusOperator:
     #   argocd.argoproj.io/hook: PreSync
     #   argocd.argoproj.io/hook-delete-policy: HookSucceeded
     patch:
-      enabled: true
+      enabled: false
       image:
         registry: registry.k8s.io
         repository: ingress-nginx/kube-webhook-certgen
@@ -2237,7 +2316,7 @@ prometheusOperator:
   ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/helm/prometheus-operator/README.md
   ##
   kubeletService:
-    enabled: true
+    enabled: false
     namespace: kube-system
     ## Use '{{ template "kube-prometheus-stack.fullname" . }}-kubelet' by default
     name: ""
@@ -2274,7 +2353,7 @@ prometheusOperator:
 
     ## Scrape timeout. If not set, the Prometheus default scrape timeout is used.
     scrapeTimeout: ""
-    selfMonitor: true
+    selfMonitor: false
 
     ## Metric relabel configs to apply to samples before ingestion.
     ##
@@ -2434,13 +2513,13 @@ prometheusOperator:
     enableProbe: false
 
     # resource config for prometheusConfigReloader
-    resources: {}
-      # requests:
-      #   cpu: 200m
-      #   memory: 50Mi
-      # limits:
-      #   cpu: 200m
-      #   memory: 50Mi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 50Mi
 
   ## Thanos side-car image when configured
   ##
@@ -2842,7 +2921,7 @@ prometheus:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
-    selfMonitor: true
+    selfMonitor: false
 
     ## Additional labels
     ##
@@ -3190,7 +3269,7 @@ prometheus:
 
     ## Enable compression of the write-ahead log using Snappy.
     ##
-    walCompression: true
+    walCompression: false
 
     ## If true, the Operator won't process any Prometheus configuration changes
     ##
@@ -3317,47 +3396,53 @@ prometheus:
     ## The scrape configuration example below will find master nodes, provided they have the name .*mst.*, relabel the
     ## port to 2379 and allow etcd scraping provided it is running on all Kubernetes master nodes
     ##
-    additionalScrapeConfigs: []
-    # - job_name: kube-etcd
-    #   kubernetes_sd_configs:
-    #     - role: node
-    #   scheme: https
-    #   tls_config:
-    #     ca_file:   /etc/prometheus/secrets/etcd-client-cert/etcd-ca
-    #     cert_file: /etc/prometheus/secrets/etcd-client-cert/etcd-client
-    #     key_file:  /etc/prometheus/secrets/etcd-client-cert/etcd-client-key
-    #   relabel_configs:
-    #   - action: labelmap
-    #     regex: __meta_kubernetes_node_label_(.+)
-    #   - source_labels: [__address__]
-    #     action: replace
-    #     targetLabel: __address__
-    #     regex: ([^:;]+):(\d+)
-    #     replacement: ${1}:2379
-    #   - source_labels: [__meta_kubernetes_node_name]
-    #     action: keep
-    #     regex: .*mst.*
-    #   - source_labels: [__meta_kubernetes_node_name]
-    #     action: replace
-    #     targetLabel: node
-    #     regex: (.*)
-    #     replacement: ${1}
-    #   metric_relabel_configs:
-    #   - regex: (kubernetes_io_hostname|failure_domain_beta_kubernetes_io_region|beta_kubernetes_io_os|beta_kubernetes_io_arch|beta_kubernetes_io_instance_type|failure_domain_beta_kubernetes_io_zone)
-    #     action: labeldrop
-    #
-    ## If scrape config contains a repetitive section, you may want to use a template.
-    ## In the following example, you can see how to define `gce_sd_configs` for multiple zones
-    # additionalScrapeConfigs: |
-    #  - job_name: "node-exporter"
-    #    gce_sd_configs:
-    #    {{range $zone := .Values.gcp_zones}}
-    #    - project: "project1"
-    #      zone: "{{$zone}}"
-    #      port: 9100
-    #    {{end}}
-    #    relabel_configs:
-    #    ...
+    additionalScrapeConfigs:
+    - job_name: kubelet
+      scrape_interval: 5m
+      honor_labels: false
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /metrics
+    - job_name: cadvisor
+      scrape_interval: 2m
+      honor_labels: false
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /metrics/cadvisor
+    - job_name: apiserver
+      scrape_interval: 5m
+      honor_labels: false
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
 
 
     ## If additional scrape configurations are already deployed in a single secret file you can use this section.
