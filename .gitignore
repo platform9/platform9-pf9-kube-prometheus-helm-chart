@@ -1,1 +1,4 @@
 .deploy
+.DS_Store
+charts/.DS_Store
+charts/crds/.DS_Store
