@@ -33,23 +33,38 @@ commonLabels: {}
 crds:
   enabled: true
 
+## custom Rules to override "for" and "severity" in defaultRules
+##
+customRules: {}
+  # AlertmanagerFailedReload:
+  #   for: 3m
+  # AlertmanagerMembersInconsistent:
+  #   for: 5m
+  #   severity: "warning"
+
 ## Create default rules for monitoring the cluster
 ##
 defaultRules:
   create: true
   rules:
     alertmanager: true
-    etcd: false
-    configReloaders: false
+    etcd: true
+    configReloaders: true
     general: true
-    k8s: true
+    k8sContainerCpuUsageSecondsTotal: true
+    k8sContainerMemoryCache: true
+    k8sContainerMemoryRss: true
+    k8sContainerMemorySwap: true
+    k8sContainerResource: true
+    k8sContainerMemoryWorkingSetBytes: true
+    k8sPodOwner: true
     kubeApiserverAvailability: true
     kubeApiserverBurnrate: true
     kubeApiserverHistogram: true
     kubeApiserverSlos: true
     kubeControllerManager: true
     kubelet: true
-    kubeProxy: false
+    kubeProxy: true
     kubePrometheusGeneral: true
     kubePrometheusNodeRecording: true
     kubernetesApps: true
@@ -63,8 +78,8 @@ defaultRules:
     node: true
     nodeExporterAlerting: true
     nodeExporterRecording: true
-    prometheus: false
-    prometheusOperator: false
+    prometheus: true
+    prometheusOperator: true
     windows: true
 
   ## Reduce app namespace alert scope
@@ -90,7 +105,12 @@ defaultRules:
     etcd: {}
     configReloaders: {}
     general: {}
-    k8s: {}
+    k8sContainerCpuUsageSecondsTotal: {}
+    k8sContainerMemoryCache: {}
+    k8sContainerMemoryRss: {}
+    k8sContainerMemorySwap: {}
+    k8sContainerResource: {}
+    k8sPodOwner: {}
     kubeApiserverAvailability: {}
     kubeApiserverBurnrate: {}
     kubeApiserverHistogram: {}
@@ -120,7 +140,12 @@ defaultRules:
     etcd: {}
     configReloaders: {}
     general: {}
-    k8s: {}
+    k8sContainerCpuUsageSecondsTotal: {}
+    k8sContainerMemoryCache: {}
+    k8sContainerMemoryRss: {}
+    k8sContainerMemorySwap: {}
+    k8sContainerResource: {}
+    k8sPodOwner: {}
     kubeApiserverAvailability: {}
     kubeApiserverBurnrate: {}
     kubeApiserverHistogram: {}
@@ -144,8 +169,14 @@ defaultRules:
     prometheus: {}
     prometheusOperator: {}
 
+  additionalAggregationLabels: []
+
   ## Prefix for runbook URLs. Use this to override the first part of the runbookURLs that is common to all rules.
   runbookUrl: "https://runbooks.prometheus-operator.dev/runbooks"
+
+  node:
+    fsSelector: 'fstype!=""'
+    # fsSelector: 'fstype=~"ext[234]|btrfs|xfs|zfs"'
 
   ## Disabled PrometheusRule alerts
   disabled: {}
@@ -218,6 +249,8 @@ prometheus-windows-exporter:
       enabled: true
       jobLabel: jobLabel
 
+  releaseLabel: true
+
   ## Set job label to 'windows-exporter' as required by the default Prometheus rules and Grafana dashboards
   ##
   podLabels:
@@ -246,6 +279,10 @@ alertmanager:
   ##
   apiVersion: v2
 
+  ## @param alertmanager.enableFeatures Enable access to Alertmanager disabled features.
+  ##
+  enableFeatures: []
+
   ## Service account for Alertmanager to use.
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
   ##
@@ -257,8 +294,6 @@ alertmanager:
 
   ## Configure pod disruption budgets for Alertmanager
   ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/#specifying-a-poddisruptionbudget
-  ## This configuration is immutable once created and will require the PDB to be deleted to be changed
-  ## https://github.com/kubernetes/kubernetes/issues/45398
   ##
   podDisruptionBudget:
     enabled: false
@@ -293,16 +328,18 @@ alertmanager:
           - 'severity = info'
         equal:
           - 'namespace'
+      - target_matchers:
+          - 'alertname = InfoInhibitor'
     route:
       group_by: ['namespace']
       group_wait: 30s
       group_interval: 5m
-      repeat_interval: 5m
+      repeat_interval: 12h
       receiver: 'null'
       routes:
       - receiver: 'null'
         matchers:
-          - alertname =~ "InfoInhibitor|Watchdog"
+          - alertname = "Watchdog"
     receivers:
     - name: 'null'
     templates:
@@ -447,6 +484,10 @@ alertmanager:
     annotations: {}
     labels: {}
     clusterIP: ""
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
 
     ## Port for Alertmanager Service to listen on
     ##
@@ -481,9 +522,16 @@ alertmanager:
     externalTrafficPolicy: Cluster
 
     ## If you want to make sure that connections from a particular client are passed to the same Pod each time
-    ## Accepts 'ClientIP' or ''
+    ## Accepts 'ClientIP' or 'None'
     ##
-    sessionAffinity: ""
+    sessionAffinity: None
+
+    ## If you want to modify the ClientIP sessionAffinity timeout
+    ## The value must be >0 && <=86400(for 1 day) if ServiceAffinity == "ClientIP"
+    ##
+    sessionAffinityConfig:
+      clientIP:
+        timeoutSeconds: 10800
 
     ## Service type
     ##
@@ -519,13 +567,16 @@ alertmanager:
     ##
     type: ClusterIP
 
-  ## If true, create a serviceMonitor for alertmanager
+  ## Configuration for creating a ServiceMonitor for AlertManager
   ##
   serviceMonitor:
+    ## If true, a ServiceMonitor will be created for the AlertManager service.
+    ##
+    selfMonitor: true
+
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
-    selfMonitor: false
 
     ## Additional labels
     ##
@@ -607,7 +658,7 @@ alertmanager:
     image:
       registry: quay.io
       repository: prometheus/alertmanager
-      tag: v0.26.0
+      tag: v0.27.0
       sha: ""
 
     ## If true then the user will be responsible to provide a secret with alertmanager configuration
@@ -619,6 +670,10 @@ alertmanager:
     ## Alertmanager Pods. The Secrets are mounted into /etc/alertmanager/secrets/.
     ##
     secrets: []
+
+    ## If false then the user will opt out of automounting API credentials.
+    ##
+    automountServiceAccountToken: true
 
     ## ConfigMaps is a list of ConfigMaps in the same namespace as the Alertmanager object, which shall be mounted into the Alertmanager Pods.
     ## The ConfigMaps are mounted into /etc/alertmanager/configmaps/.
@@ -712,7 +767,7 @@ alertmanager:
     #     resources:
     #       requests:
     #         storage: 50Gi
-    #     selector: {}
+    #   selector: {}
 
 
     ## The external URL the Alertmanager instances will be available under. This is necessary to generate correct URLs. This is necessary if Alertmanager is not served from root of a DNS name. string  false
@@ -979,7 +1034,11 @@ grafana:
   ##
   defaultDashboardsTimezone: utc
 
-  adminPassword: admin
+  ## Editable flag for the default dashboards
+  ##
+  defaultDashboardsEditable: true
+
+  adminPassword: prom-operator
 
   rbac:
     ## If true, Grafana PSPs will be created
@@ -1024,6 +1083,22 @@ grafana:
     #   hosts:
     #   - grafana.example.com
 
+  # # To make Grafana persistent (Using Statefulset)
+  # #
+  # persistence:
+  #   enabled: true
+  #   type: sts
+  #   storageClassName: "storageClassName"
+  #   accessModes:
+  #     - ReadWriteOnce
+  #   size: 20Gi
+  #   finalizers:
+  #     - kubernetes.io/pvc-protection
+
+  serviceAccount:
+    create: true
+    autoMount: true
+
   sidecar:
     dashboards:
       enabled: true
@@ -1031,6 +1106,9 @@ grafana:
       labelValue: "1"
       # Allow discovery in all namespaces for dashboards
       searchNamespace: ALL
+
+      # Support for new table panels, when enabled grafana auto migrates the old table panels to newer table panels
+      enableNewTablePanelSyntax: false
 
       ## Annotations for Grafana dashboard configmaps
       ##
@@ -1047,6 +1125,7 @@ grafana:
       defaultDatasourceEnabled: true
       isDefaultDatasource: true
 
+      name: Prometheus
       uid: prometheus
 
       ## URL of prometheus datasource
@@ -1081,6 +1160,7 @@ grafana:
         # traceIdLabelName: trace_id
       alertmanager:
         enabled: true
+        name: Alertmanager
         uid: alertmanager
         handleGrafanaManagedAlerts: false
         implementation: prometheus
@@ -1111,17 +1191,23 @@ grafana:
   #   url: https://{{ printf "%s-prometheus.svc" .Release.Name }}:9090
   #   version: 1
 
+  # Flag to mark provisioned data sources for deletion if they are no longer configured.
+  # It takes no effect if data sources are already listed in the deleteDatasources section.
+  # ref: https://grafana.com/docs/grafana/latest/administration/provisioning/#example-data-source-config-file
+  prune: false
+
   ## Passed to grafana subchart and used by servicemonitor below
   ##
   service:
     portName: http-web
-    type: NodePort
+    ipFamilies: []
+    ipFamilyPolicy: ""
 
   serviceMonitor:
     # If true, a ServiceMonitor CRD is created for a prometheus operator
     # https://github.com/coreos/prometheus-operator
     #
-    enabled: false
+    enabled: true
 
     # Path to use for scraping metrics. Might be different if server.root_url is set
     # in grafana.ini
@@ -1130,7 +1216,6 @@ grafana:
     #  namespace: monitoring  (defaults to use the namespace this chart is deployed to)
 
     # labels for the ServiceMonitor
-    # release: {{ .Release.Name }}
     labels: {}
 
     # Scrape interval. If not set, the Prometheus default scrape interval is used.
@@ -1298,6 +1383,12 @@ kubelet:
     ## https://github.com/prometheus-operator/prometheus-operator/issues/926
     ##
     https: true
+
+    ## Skip TLS certificate validation when scraping.
+    ## This is enabled by default because kubelet serving certificate deployed by kubeadm is by default self-signed
+    ## ref: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/#kubelet-serving-certs
+    ##
+    insecureSkipVerify: true
 
     ## Enable scraping /metrics/cadvisor from kubelet's service
     ##
@@ -1467,6 +1558,10 @@ kubeControllerManager:
     ##
     port: null
     targetPort: null
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
     # selector:
     #   component: kube-controller-manager
 
@@ -1499,6 +1594,15 @@ kubeControllerManager:
     ## proxyUrl: URL of a proxy that should be used for scraping.
     ##
     proxyUrl: ""
+
+    ## port: Name of the port the metrics will be scraped from
+    ##
+    port: http-metrics
+
+    jobLabel: jobLabel
+    selector: {}
+    #  matchLabels:
+    #    component: kube-controller-manager
 
     ## Enable scraping kube-controller-manager over https.
     ## Requires proper certs (not self-signed) and delegated authentication/authorization checks.
@@ -1541,11 +1645,18 @@ kubeControllerManager:
 coreDns:
   enabled: true
   service:
+    enabled: true
     port: 9153
     targetPort: 9153
+
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
     # selector:
     #   k8s-app: kube-dns
   serviceMonitor:
+    enabled: true
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
@@ -1573,6 +1684,15 @@ coreDns:
     ## proxyUrl: URL of a proxy that should be used for scraping.
     ##
     proxyUrl: ""
+
+    ## port: Name of the port the metrics will be scraped from
+    ##
+    port: http-metrics
+
+    jobLabel: jobLabel
+    selector: {}
+    #  matchLabels:
+    #    k8s-app: kube-dns
 
     ## MetricRelabelConfigs to apply to samples after scraping, but before ingestion.
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#relabelconfig
@@ -1609,6 +1729,10 @@ kubeDns:
     skydns:
       port: 10055
       targetPort: 10055
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
     # selector:
     #   k8s-app: kube-dns
   serviceMonitor:
@@ -1639,6 +1763,11 @@ kubeDns:
     ## proxyUrl: URL of a proxy that should be used for scraping.
     ##
     proxyUrl: ""
+
+    jobLabel: jobLabel
+    selector: {}
+    #  matchLabels:
+    #    k8s-app: kube-dns
 
     ## MetricRelabelConfigs to apply to samples after scraping, but before ingestion.
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#relabelconfig
@@ -1699,8 +1828,12 @@ kubeEtcd:
   ##
   service:
     enabled: true
-    port: 2379
-    targetPort: 2379
+    port: 2381
+    targetPort: 2381
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
     # selector:
     #   component: etcd
 
@@ -1751,6 +1884,15 @@ kubeEtcd:
     certFile: ""
     keyFile: ""
 
+    ## port: Name of the port the metrics will be scraped from
+    ##
+    port: http-metrics
+
+    jobLabel: jobLabel
+    selector: {}
+    #  matchLabels:
+    #    component: etcd
+
     ## MetricRelabelConfigs to apply to samples after scraping, but before ingestion.
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#relabelconfig
     ##
@@ -1796,6 +1938,10 @@ kubeScheduler:
     ##
     port: null
     targetPort: null
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
     # selector:
     #   component: kube-scheduler
 
@@ -1833,6 +1979,15 @@ kubeScheduler:
     ## If null or unset, the value is determined dynamically based on target Kubernetes version.
     ##
     https: null
+
+    ## port: Name of the port the metrics will be scraped from
+    ##
+    port: http-metrics
+
+    jobLabel: jobLabel
+    selector: {}
+    #  matchLabels:
+    #    component: kube-scheduler
 
     ## Skip TLS certificate validation when scraping
     insecureSkipVerify: null
@@ -1880,6 +2035,10 @@ kubeProxy:
     enabled: true
     port: 10249
     targetPort: 10249
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
     # selector:
     #   k8s-app: kube-proxy
 
@@ -1912,6 +2071,15 @@ kubeProxy:
     ## proxyUrl: URL of a proxy that should be used for scraping.
     ##
     proxyUrl: ""
+
+    ## port: Name of the port the metrics will be scraped from
+    ##
+    port: http-metrics
+
+    jobLabel: jobLabel
+    selector: {}
+    #  matchLabels:
+    #    k8s-app: kube-proxy
 
     ## Enable scraping kube-proxy over https.
     ## Requires proper certs (not self-signed) and delegated authentication/authorization checks
@@ -2023,6 +2191,10 @@ nodeExporter:
     darwin:
       enabled: true
 
+  ## ForceDeployDashboard Create dashboard configmap even if nodeExporter deployment has been disabled
+  ##
+  forceDeployDashboards: false
+
 ## Configuration for prometheus-node-exporter subchart
 ##
 prometheus-node-exporter:
@@ -2037,6 +2209,13 @@ prometheus-node-exporter:
     - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
   service:
     portName: http-metrics
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
+    labels:
+      jobLabel: node-exporter
+
   prometheus:
     monitor:
       enabled: true
@@ -2105,28 +2284,54 @@ prometheus-node-exporter:
 prometheusOperator:
   enabled: true
 
+  ## Use '{{ template "kube-prometheus-stack.fullname" . }}-operator' by default
+  fullnameOverride: ""
+
   ## Number of old replicasets to retain ##
   ## The default value is 10, 0 will garbage-collect old replicasets ##
   revisionHistoryLimit: 10
 
+  ## Strategy of the deployment
+  ##
+  strategy: {}
+
   ## Prometheus-Operator v0.39.0 and later support TLS natively.
   ##
   tls:
-    enabled: false
+    enabled: true
     # Value must match version names from https://golang.org/pkg/crypto/tls/#pkg-constants
     tlsMinVersion: VersionTLS13
     # The default webhook port is 10250 in order to work out-of-the-box in GKE private clusters and avoid adding firewall rules.
     internalPort: 10250
+
+  ## Liveness probe for the prometheusOperator deployment
+  ##
+  livenessProbe:
+    enabled: true
+    failureThreshold: 3
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 1
+  ## Readiness probe for the prometheusOperator deployment
+  ##
+  readinessProbe:
+    enabled: true
+    failureThreshold: 3
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 1
 
   ## Admission webhook support for PrometheusRules resources added in Prometheus Operator 0.30 can be enabled to prevent incorrectly formatted
   ## rules from making their way into prometheus and potentially preventing the container from starting
   admissionWebhooks:
     ## Valid values: Fail, Ignore, IgnoreOnInstallOnly
     ## IgnoreOnInstallOnly - If Release.IsInstall returns "true", set "Ignore" otherwise "Fail"
-    failurePolicy: Fail
+    failurePolicy: ""
     ## The default timeoutSeconds is 10 and the maximum value is 30.
     timeoutSeconds: 10
-    enabled: false
+    enabled: true
     ## A PEM encoded CA bundle which will be used to validate the webhook's server certificate.
     ## If unspecified, system trust roots on the apiserver are used.
     caBundle: ""
@@ -2137,8 +2342,239 @@ prometheusOperator:
     annotations: {}
     #   argocd.argoproj.io/hook: PreSync
     #   argocd.argoproj.io/hook-delete-policy: HookSucceeded
-    patch:
+
+    namespaceSelector: {}
+    objectSelector: {}
+
+    mutatingWebhookConfiguration:
+      annotations: {}
+      #   argocd.argoproj.io/hook: PreSync
+
+    validatingWebhookConfiguration:
+      annotations: {}
+      #   argocd.argoproj.io/hook: PreSync
+
+    deployment:
       enabled: false
+
+      ## Number of replicas
+      ##
+      replicas: 1
+
+      ## Strategy of the deployment
+      ##
+      strategy: {}
+
+      # Ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+      podDisruptionBudget: {}
+        # maxUnavailable: 1
+        # minAvailable: 1
+
+      ## Number of old replicasets to retain ##
+      ## The default value is 10, 0 will garbage-collect old replicasets ##
+      revisionHistoryLimit: 10
+
+      ## Prometheus-Operator v0.39.0 and later support TLS natively.
+      ##
+      tls:
+        enabled: true
+        # Value must match version names from https://golang.org/pkg/crypto/tls/#pkg-constants
+        tlsMinVersion: VersionTLS13
+        # The default webhook port is 10250 in order to work out-of-the-box in GKE private clusters and avoid adding firewall rules.
+        internalPort: 10250
+
+      ## Service account for Prometheus Operator Webhook to use.
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+      ##
+      serviceAccount:
+        annotations: {}
+        automountServiceAccountToken: false
+        create: true
+        name: ""
+
+      ## Configuration for Prometheus operator Webhook service
+      ##
+      service:
+        annotations: {}
+        labels: {}
+        clusterIP: ""
+        ipDualStack:
+          enabled: false
+          ipFamilies: ["IPv6", "IPv4"]
+          ipFamilyPolicy: "PreferDualStack"
+
+        ## Port to expose on each node
+        ## Only used if service.type is 'NodePort'
+        ##
+        nodePort: 31080
+
+        nodePortTls: 31443
+
+        ## Additional ports to open for Prometheus operator Webhook service
+        ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#multi-port-services
+        ##
+        additionalPorts: []
+
+        ## Loadbalancer IP
+        ## Only use if service.type is "LoadBalancer"
+        ##
+        loadBalancerIP: ""
+        loadBalancerSourceRanges: []
+
+        ## Denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints
+        ##
+        externalTrafficPolicy: Cluster
+
+        ## Service type
+        ## NodePort, ClusterIP, LoadBalancer
+        ##
+        type: ClusterIP
+
+        ## List of IP addresses at which the Prometheus server service is available
+        ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+        ##
+        externalIPs: []
+
+      # ## Labels to add to the operator webhook deployment
+      # ##
+      labels: {}
+
+      ## Annotations to add to the operator webhook deployment
+      ##
+      annotations: {}
+
+      ## Labels to add to the operator webhook pod
+      ##
+      podLabels: {}
+
+      ## Annotations to add to the operator webhook pod
+      ##
+      podAnnotations: {}
+
+      ## Assign a PriorityClassName to pods if set
+      # priorityClassName: ""
+
+      ## Define Log Format
+      # Use logfmt (default) or json logging
+      # logFormat: logfmt
+
+      ## Decrease log verbosity to errors only
+      # logLevel: error
+
+      ## Prometheus-operator webhook image
+      ##
+      image:
+        registry: quay.io
+        repository: prometheus-operator/admission-webhook
+        # if not set appVersion field from Chart.yaml is used
+        tag: ""
+        sha: ""
+        pullPolicy: IfNotPresent
+
+      ## Define Log Format
+      # Use logfmt (default) or json logging
+      # logFormat: logfmt
+
+      ## Decrease log verbosity to errors only
+      # logLevel: error
+
+
+      ## Liveness probe
+      ##
+      livenessProbe:
+        enabled: true
+        failureThreshold: 3
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+
+      ## Readiness probe
+      ##
+      readinessProbe:
+        enabled: true
+        failureThreshold: 3
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+
+      ## Resource limits & requests
+      ##
+      resources: {}
+      # limits:
+      #   cpu: 200m
+      #   memory: 200Mi
+      # requests:
+      #   cpu: 100m
+      #   memory: 100Mi
+
+      # Required for use in managed kubernetes clusters (such as AWS EKS) with custom CNI (such as calico),
+      # because control-plane managed by AWS cannot communicate with pods' IP CIDR and admission webhooks are not working
+      ##
+      hostNetwork: false
+
+      ## Define which Nodes the Pods are scheduled on.
+      ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+      ##
+      nodeSelector: {}
+
+      ## Tolerations for use with node taints
+      ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+      ##
+      tolerations: []
+      # - key: "key"
+      #   operator: "Equal"
+      #   value: "value"
+      #   effect: "NoSchedule"
+
+      ## Assign custom affinity rules to the prometheus operator
+      ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+      ##
+      affinity: {}
+        # nodeAffinity:
+        #   requiredDuringSchedulingIgnoredDuringExecution:
+        #     nodeSelectorTerms:
+        #     - matchExpressions:
+        #       - key: kubernetes.io/e2e-az-name
+        #         operator: In
+        #         values:
+        #         - e2e-az1
+      #         - e2e-az2
+      dnsConfig: {}
+        # nameservers:
+        #   - 1.2.3.4
+        # searches:
+        #   - ns1.svc.cluster-domain.example
+        #   - my.dns.search.suffix
+        # options:
+        #   - name: ndots
+        #     value: "2"
+        #   - name: edns0
+      securityContext:
+        fsGroup: 65534
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+      ## Container-specific security context configuration
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+      ##
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+
+      ## If false then the user will opt out of automounting API credentials.
+      ##
+      automountServiceAccountToken: true
+
+    patch:
+      enabled: true
       image:
         registry: registry.k8s.io
         repository: ingress-nginx/kube-webhook-certgen
@@ -2149,6 +2585,7 @@ prometheusOperator:
       ## Provide a priority class name to the webhook patching job
       ##
       priorityClassName: ""
+      ttlSecondsAfterFinished: 60
       annotations: {}
       #   argocd.argoproj.io/hook: PreSync
       #   argocd.argoproj.io/hook-delete-policy: HookSucceeded
@@ -2167,6 +2604,13 @@ prometheusOperator:
         runAsUser: 2000
         seccompProfile:
           type: RuntimeDefault
+      ## Service account for Prometheus Operator Webhook Job Patch to use.
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+      ##
+      serviceAccount:
+        create: true
+        annotations: {}
+        automountServiceAccountToken: true
 
     # Security context for create job container
     createSecretJob:
@@ -2246,6 +2690,8 @@ prometheusOperator:
   serviceAccount:
     create: true
     name: ""
+    automountServiceAccountToken: true
+    annotations: {}
 
   ## Configuration for Prometheus operator service
   ##
@@ -2253,6 +2699,10 @@ prometheusOperator:
     annotations: {}
     labels: {}
     clusterIP: ""
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
 
   ## Port to expose on each node
   ## Only used if service.type is 'NodePort'
@@ -2312,18 +2762,23 @@ prometheusOperator:
   ## Decrease log verbosity to errors only
   # logLevel: error
 
-  ## If true, the operator will create and maintain a service for scraping kubelets
-  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/helm/prometheus-operator/README.md
-  ##
   kubeletService:
-    enabled: false
+    ## If true, the operator will create and maintain a service for scraping kubelets
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/helm/prometheus-operator/README.md
+    ##
+    enabled: true
     namespace: kube-system
+    selector: ""
     ## Use '{{ template "kube-prometheus-stack.fullname" . }}-kubelet' by default
     name: ""
 
   ## Create a servicemonitor for the operator
   ##
   serviceMonitor:
+    ## If true, create a serviceMonitor for prometheus operator
+    ##
+    selfMonitor: true
+
     ## Labels for ServiceMonitor
     additionalLabels: {}
 
@@ -2353,7 +2808,6 @@ prometheusOperator:
 
     ## Scrape timeout. If not set, the Prometheus default scrape timeout is used.
     scrapeTimeout: ""
-    selfMonitor: false
 
     ## Metric relabel configs to apply to samples before ingestion.
     ##
@@ -2381,6 +2835,12 @@ prometheusOperator:
   # requests:
   #   cpu: 100m
   #   memory: 100Mi
+
+  ## Operator Environment
+  ##  env:
+  ##    VARIABLE: value
+  env:
+    GOGC: "30"
 
   # Required for use in managed kubernetes clusters (such as AWS EKS) with custom CNI (such as calico),
   # because control-plane managed by AWS cannot communicate with pods' IP CIDR and admission webhooks are not working
@@ -2513,20 +2973,20 @@ prometheusOperator:
     enableProbe: false
 
     # resource config for prometheusConfigReloader
-    resources:
-      requests:
-        cpu: 200m
-        memory: 50Mi
-      limits:
-        cpu: 200m
-        memory: 50Mi
+    resources: {}
+      # requests:
+      #   cpu: 200m
+      #   memory: 50Mi
+      # limits:
+      #   cpu: 200m
+      #   memory: 50Mi
 
   ## Thanos side-car image when configured
   ##
   thanosImage:
     registry: quay.io
     repository: thanos/thanos
-    tag: v0.32.5
+    tag: v0.36.1
     sha: ""
 
   ## Set a Label Selector to filter watched prometheus and prometheusAgent
@@ -2543,6 +3003,18 @@ prometheusOperator:
   ## Set a Field Selector to filter watched secrets
   ##
   secretFieldSelector: "type!=kubernetes.io/dockercfg,type!=kubernetes.io/service-account-token,type!=helm.sh/release.v1"
+
+  ## If false then the user will opt out of automounting API credentials.
+  ##
+  automountServiceAccountToken: true
+
+  ## Additional volumes
+  ##
+  extraVolumes: []
+
+  ## Additional volume mounts
+  ##
+  extraVolumeMounts: []
 
 ## Deploy a Prometheus instance
 ##
@@ -2589,6 +3061,7 @@ prometheus:
     create: true
     name: ""
     annotations: {}
+    automountServiceAccountToken: true
 
   # Service for thanos service discovery on sidecar
   # Enable this can make Thanos Query can use
@@ -2607,6 +3080,13 @@ prometheus:
     ## Service type
     ##
     type: ClusterIP
+
+    ## Service dual stack
+    ##
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
 
     ## gRPC port config
     portName: grpc
@@ -2690,6 +3170,10 @@ prometheus:
     annotations: {}
     labels: {}
     clusterIP: ""
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
 
     ## Port for Prometheus Service to listen on
     ##
@@ -2697,6 +3181,10 @@ prometheus:
 
     ## To be used with a proxy extraContainer port
     targetPort: 9090
+
+    ## Port for Prometheus Reloader to listen on
+    ##
+    reloaderWebPort: 8080
 
     ## List of IP addresses at which the Prometheus server service is available
     ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
@@ -2736,7 +3224,17 @@ prometheus:
     ## Ref: https://kubernetes.io/docs/reference/kubernetes-api/service-resources/service-v1/#ServiceSpec
     publishNotReadyAddresses: false
 
-    sessionAffinity: ""
+    ## If you want to make sure that connections from a particular client are passed to the same Pod each time
+    ## Accepts 'ClientIP' or 'None'
+    ##
+    sessionAffinity: None
+
+    ## If you want to modify the ClientIP sessionAffinity timeout
+    ## The value must be >0 && <=86400(for 1 day) if ServiceAffinity == "ClientIP"
+    ##
+    sessionAffinityConfig:
+      clientIP:
+        timeoutSeconds: 10800
 
   ## Configuration for creating a separate Service for each statefulset Prometheus replica
   ##
@@ -2768,10 +3266,15 @@ prometheus:
     ##
     type: ClusterIP
 
+    ## Service dual stack
+    ##
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
+
   ## Configure pod disruption budgets for Prometheus
   ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/#specifying-a-poddisruptionbudget
-  ## This configuration is immutable once created and will require the PDB to be deleted to be changed
-  ## https://github.com/kubernetes/kubernetes/issues/45398
   ##
   podDisruptionBudget:
     enabled: false
@@ -2918,10 +3421,13 @@ prometheus:
     volumes: []
 
   serviceMonitor:
+    ## If true, create a serviceMonitor for prometheus
+    ##
+    selfMonitor: true
+
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
-    selfMonitor: false
 
     ## Additional labels
     ##
@@ -2983,8 +3489,23 @@ prometheus:
   ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#prometheusspec
   ##
   prometheusSpec:
+    ## Statefulset's persistent volume claim retention policy
+    ## pvcDeleteOnStsDelete and pvcDeleteOnStsScale determine whether
+    ## statefulset's PVCs are deleted (true) or retained (false) on scaling down
+    ## and deleting statefulset, respectively. Requires 1.27.0+.
+    ## Ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention
+    persistentVolumeClaimRetentionPolicy: {}
+    #  whenDeleted: Retain
+    #  whenScaled: Retain
+
     ## If true, pass --storage.tsdb.max-block-duration=2h to prometheus. This is already done if using Thanos
     ##
+    ## AutomountServiceAccountToken indicates whether a service account token should be automatically mounted in the pod,
+    ## If the field isn’t set, the operator mounts the service account token by default.
+    ## Warning: be aware that by default, Prometheus requires the service account token for Kubernetes service discovery,
+    ## It is possible to use strategic merge patch to project the service account token into the ‘prometheus’ container.
+    automountServiceAccountToken: true
+
     disableCompaction: false
     ## APIServerConfig
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#apiserverconfig
@@ -3004,6 +3525,16 @@ prometheus:
     ## Number of seconds to wait for target to respond before erroring
     ##
     scrapeTimeout: ""
+
+    ## List of scrape classes to expose to scraping objects such as
+    ## PodMonitors, ServiceMonitors, Probes and ScrapeConfigs.
+    ##
+    scrapeClasses: []
+    # - name: istio-mtls
+    #   default: false
+    #   tlsConfig:
+    #     caFile: /etc/prometheus/secrets/istio.default/root-cert.pem
+    #     certFile: /etc/prometheus/secrets/istio.default/cert-chain.pem
 
     ## Interval between consecutive evaluations.
     ##
@@ -3045,7 +3576,7 @@ prometheus:
     image:
       registry: quay.io
       repository: prometheus/prometheus
-      tag: v2.47.1
+      tag: v2.54.1
       sha: ""
 
     ## Tolerations for use with node taints
@@ -3243,7 +3774,7 @@ prometheus:
     ##
     scrapeConfigSelector: {}
     ## Example which selects scrapeConfigs with label "prometheus" set to "somelabel"
-    # scrapeConfig:
+    # scrapeConfigSelector:
     #   matchLabels:
     #     prometheus: somelabel
 
@@ -3269,7 +3800,7 @@ prometheus:
 
     ## Enable compression of the write-ahead log using Snappy.
     ##
-    walCompression: false
+    walCompression: true
 
     ## If true, the Operator won't process any Prometheus configuration changes
     ##
@@ -3396,53 +3927,47 @@ prometheus:
     ## The scrape configuration example below will find master nodes, provided they have the name .*mst.*, relabel the
     ## port to 2379 and allow etcd scraping provided it is running on all Kubernetes master nodes
     ##
-    additionalScrapeConfigs:
-    - job_name: kubelet
-      scrape_interval: 5m
-      honor_labels: false
-      scheme: https
-      tls_config:
-        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-      kubernetes_sd_configs:
-      - role: node
-      relabel_configs:
-      - action: labelmap
-        regex: __meta_kubernetes_node_label_(.+)
-      - source_labels: [__meta_kubernetes_node_name]
-        regex: (.+)
-        target_label: __metrics_path__
-        replacement: /metrics
-    - job_name: cadvisor
-      scrape_interval: 2m
-      honor_labels: false
-      scheme: https
-      tls_config:
-        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-      kubernetes_sd_configs:
-      - role: node
-      relabel_configs:
-      - action: labelmap
-        regex: __meta_kubernetes_node_label_(.+)
-      - source_labels: [__meta_kubernetes_node_name]
-        regex: (.+)
-        target_label: __metrics_path__
-        replacement: /metrics/cadvisor
-    - job_name: apiserver
-      scrape_interval: 5m
-      honor_labels: false
-      scheme: https
-      tls_config:
-        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        insecure_skip_verify: true
-      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-      kubernetes_sd_configs:
-      - role: endpoints
-      relabel_configs:
-      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
-        action: keep
-        regex: default;kubernetes;https
+    additionalScrapeConfigs: []
+    # - job_name: kube-etcd
+    #   kubernetes_sd_configs:
+    #     - role: node
+    #   scheme: https
+    #   tls_config:
+    #     ca_file:   /etc/prometheus/secrets/etcd-client-cert/etcd-ca
+    #     cert_file: /etc/prometheus/secrets/etcd-client-cert/etcd-client
+    #     key_file:  /etc/prometheus/secrets/etcd-client-cert/etcd-client-key
+    #   relabel_configs:
+    #   - action: labelmap
+    #     regex: __meta_kubernetes_node_label_(.+)
+    #   - source_labels: [__address__]
+    #     action: replace
+    #     targetLabel: __address__
+    #     regex: ([^:;]+):(\d+)
+    #     replacement: ${1}:2379
+    #   - source_labels: [__meta_kubernetes_node_name]
+    #     action: keep
+    #     regex: .*mst.*
+    #   - source_labels: [__meta_kubernetes_node_name]
+    #     action: replace
+    #     targetLabel: node
+    #     regex: (.*)
+    #     replacement: ${1}
+    #   metric_relabel_configs:
+    #   - regex: (kubernetes_io_hostname|failure_domain_beta_kubernetes_io_region|beta_kubernetes_io_os|beta_kubernetes_io_arch|beta_kubernetes_io_instance_type|failure_domain_beta_kubernetes_io_zone)
+    #     action: labeldrop
+    #
+    ## If scrape config contains a repetitive section, you may want to use a template.
+    ## In the following example, you can see how to define `gce_sd_configs` for multiple zones
+    # additionalScrapeConfigs: |
+    #  - job_name: "node-exporter"
+    #    gce_sd_configs:
+    #    {{range $zone := .Values.gcp_zones}}
+    #    - project: "project1"
+    #      zone: "{{$zone}}"
+    #      port: 9100
+    #    {{end}}
+    #    relabel_configs:
+    #    ...
 
 
     ## If additional scrape configurations are already deployed in a single secret file you can use this section.
@@ -3588,8 +4113,10 @@ prometheus:
     ## OverrideHonorTimestamps allows to globally enforce honoring timestamps in all scrape configs.
     overrideHonorTimestamps: false
 
-    ## IgnoreNamespaceSelectors if set to true will ignore NamespaceSelector settings from the podmonitor and servicemonitor
-    ## configs, and they will only discover endpoints within their current namespace. Defaults to false.
+    ## When ignoreNamespaceSelectors is set to true, namespaceSelector from all PodMonitor, ServiceMonitor and Probe objects will be ignored,
+    ## they will only discover targets within the namespace of the PodMonitor, ServiceMonitor and Probe object,
+    ## and servicemonitors will be installed in the default service namespace.
+    ## Defaults to false.
     ignoreNamespaceSelectors: false
 
     ## EnforcedNamespaceLabel enforces adding a namespace label of origin for each alert and metric that is user created.
@@ -3613,6 +4140,15 @@ prometheus:
     ## as /dev/stdout to log querie information to the default Prometheus log stream. This is only available in versions
     ## of Prometheus >= 2.16.0. For more details, see the Prometheus docs (https://prometheus.io/docs/guides/query-log/)
     queryLogFile: false
+
+    # Use to set global sample_limit for Prometheus. This act as default SampleLimit for ServiceMonitor or/and PodMonitor.
+    # Set to 'false' to disable global sample_limit. or set to a number to override the default value.
+    sampleLimit: false
+
+    # EnforcedKeepDroppedTargetsLimit defines on the number of targets dropped by relabeling that will be kept in memory.
+    # The value overrides any spec.keepDroppedTargets set by ServiceMonitor, PodMonitor, Probe objects unless spec.keepDroppedTargets
+    # is greater than zero and less than spec.enforcedKeepDroppedTargets. 0 means no limit.
+    enforcedKeepDroppedTargets: 0
 
     ## EnforcedSampleLimit defines global limit on number of scraped samples that will be accepted. This overrides any SampleLimit
     ## set per ServiceMonitor or/and PodMonitor. It is meant to be used by admins to enforce the SampleLimit to keep overall
@@ -3667,6 +4203,10 @@ prometheus:
     ## See https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#prometheustracingconfig
     tracingConfig: {}
 
+    ## Defines the service discovery role used to discover targets from ServiceMonitor objects and Alertmanager endpoints.
+    ## If set, the value should be either “Endpoints” or “EndpointSlice”. If unset, the operator assumes the “Endpoints” role.
+    serviceDiscoveryRole: ""
+
     ## Additional configuration which is not covered by the properties above. (passed through tpl)
     additionalConfig: {}
 
@@ -3674,6 +4214,13 @@ prometheus:
     ## Useful, if you need advanced templating inside alertmanagerSpec.
     ## Otherwise, use prometheus.prometheusSpec.additionalConfig (passed through tpl)
     additionalConfigString: ""
+
+    ## Defines the maximum time that the `prometheus` container's startup probe
+    ## will wait before being considered failed. The startup probe will return
+    ## success after the WAL replay is complete. If set, the value should be
+    ## greater than 60 (seconds). Otherwise it will be equal to 900 seconds (15
+    ## minutes).
+    maximumStartupDurationSeconds: 0
 
   additionalRulesForClusterRole: []
   #  - apiGroups: [ "" ]
@@ -3855,8 +4402,6 @@ thanosRuler:
 
   ## Configure pod disruption budgets for ThanosRuler
   ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/#specifying-a-poddisruptionbudget
-  ## This configuration is immutable once created and will require the PDB to be deleted to be changed
-  ## https://github.com/kubernetes/kubernetes/issues/45398
   ##
   podDisruptionBudget:
     enabled: false
@@ -3902,6 +4447,10 @@ thanosRuler:
     annotations: {}
     labels: {}
     clusterIP: ""
+    ipDualStack:
+      enabled: false
+      ipFamilies: ["IPv6", "IPv4"]
+      ipFamilyPolicy: "PreferDualStack"
 
     ## Port for ThanosRuler Service to listen on
     ##
@@ -3932,13 +4481,16 @@ thanosRuler:
     ##
     type: ClusterIP
 
-  ## If true, create a serviceMonitor for thanosRuler
+  ## Configuration for creating a ServiceMonitor for the ThanosRuler service
   ##
   serviceMonitor:
+    ## If true, create a serviceMonitor for thanosRuler
+    ##
+    selfMonitor: true
+
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
-    selfMonitor: true
 
     ## Additional labels
     ##
@@ -4016,7 +4568,7 @@ thanosRuler:
     image:
       registry: quay.io
       repository: thanos/thanos
-      tag: v0.32.5
+      tag: v0.36.1
       sha: ""
 
     ## Namespaces to be selected for PrometheusRules discovery.
@@ -4113,6 +4665,10 @@ thanosRuler:
     ##
     externalPrefix:
 
+    ## If true, http://{{ template "kube-prometheus-stack.thanosRuler.name" . }}.{{ template "kube-prometheus-stack.namespace" . }}:{{ .Values.thanosRuler.service.port }}
+    ## will be used as value for externalPrefix
+    externalPrefixNilUsesHelmValues: true
+
     ## The route prefix ThanosRuler registers HTTP handlers for. This is useful, if using ExternalURL and a proxy is rewriting HTTP routes of a request, and the actual ExternalURL is still true,
     ## but the server serves requests under a different route prefix. For example for use with kubectl proxy.
     ##
@@ -4134,6 +4690,10 @@ thanosRuler:
         #   region: ""
         #   access_key: ""
         #   secret_key: ""
+
+    ## Labels by name to drop before sending to alertmanager
+    ## Maps to the --alert.label-drop flag of thanos ruler.
+    alertDropLabels: []
 
     ## QueryEndpoints defines Thanos querier endpoints from which to query metrics.
     ## Maps to the --query flag of thanos ruler.
@@ -4166,6 +4726,17 @@ thanosRuler:
     ## If set to true all actions on the underlying managed objects are not going to be performed, except for delete actions.
     ##
     paused: false
+
+    ## Allows setting additional arguments for the ThanosRuler container
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#thanosruler
+    ##
+    additionalArgs: []
+      # - name: remote-write.config
+      #   value: |-
+      #     "remote_write":
+      #     - "name": "receiver-0"
+      #       "remote_timeout": "30s"
+      #       "url": "http://thanos-receiver-0.thanos-receiver:8081/api/v1/receive"
 
     ## Define which Nodes the Pods are scheduled on.
     ## ref: https://kubernetes.io/docs/user-guide/node-selection/
@@ -4263,6 +4834,17 @@ thanosRuler:
     ## PortName to use for ThanosRuler.
     ##
     portName: "web"
+
+    ## WebTLSConfig defines the TLS parameters for HTTPS
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#thanosrulerwebspec
+    web: {}
+
+    ## Additional configuration which is not covered by the properties above. (passed through tpl)
+    additionalConfig: {}
+
+    ## Additional configuration which is not covered by the properties above.
+    ## Useful, if you need advanced templating
+    additionalConfigString: ""
 
   ## ExtraSecret can be used to store various data in an extra secret
   ## (use it for example to store hashed basic auth credentials)
