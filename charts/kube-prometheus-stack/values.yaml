@@ -3929,7 +3929,6 @@ prometheus:
     ## port to 2379 and allow etcd scraping provided it is running on all Kubernetes master nodes
     ##
     additionalScrapeConfigs:
-    additionalScrapeConfigs:
     - job_name: kubelet
       scrape_interval: 5m
       honor_labels: false
@@ -3942,14 +3941,13 @@ prometheus:
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
-      - source_labels:
-        - __metrics_path__
-        target_label: metrics_path
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
         replacement: /metrics
     - job_name: cadvisor
       scrape_interval: 2m
       honor_labels: false
-      metrics_path: /metrics/cadvisor
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -3959,9 +3957,9 @@ prometheus:
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
-      - source_labels:
-        - __metrics_path__
-        target_label: metrics_path
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
         replacement: /metrics/cadvisor
     - job_name: apiserver
       scrape_interval: 5m
