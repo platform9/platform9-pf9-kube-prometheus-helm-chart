@@ -1161,7 +1161,7 @@ data:
                 "refresh": 1,
                 "regex": "",
                 "type": "datasource"
-            }          
+            }
         ]
       },
       "time": {
