@@ -1203,6 +1203,9 @@ grafana:
     type: NodePort
     ipFamilies: []
     ipFamilyPolicy: ""
+    ## The url annotation can be added to the Grafana service. This annotation will be utilized by the UI to generate a link for viewing Grafana.
+    ##annotations:
+    ##  url: "platform9"
 
   serviceMonitor:
     # If true, a ServiceMonitor CRD is created for a prometheus operator
