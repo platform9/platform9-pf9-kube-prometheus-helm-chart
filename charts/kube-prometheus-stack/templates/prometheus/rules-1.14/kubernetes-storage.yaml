@@ -79,14 +79,18 @@ spec:
         summary: PersistentVolume is filling up.
       expr: |-
         (
-          kubelet_volume_stats_available_bytes{job="kubelet", namespace=~".*"}
+          kubelet_volume_stats_available_bytes{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}
             /
-          kubelet_volume_stats_capacity_bytes{job="kubelet", namespace=~".*"}
+          kubelet_volume_stats_capacity_bytes{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}
         ) < 0.15
         and
-        kubelet_volume_stats_used_bytes{job="kubelet", namespace=~".*"} > 0
+        kubelet_volume_stats_used_bytes{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"} > 0
         and
-        predict_linear(kubelet_volume_stats_available_bytes{job="kubelet",namespace=~".*"}[6h], 4 * 24 * 3600)
+        predict_linear(kubelet_volume_stats_available_bytes{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0
+        unless on ({{ range $.Values.defaultRules.additionalAggregationLabels }}{{ . }},{{ end }}cluster, namespace, persistentvolumeclaim)
+        kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1
+        unless on ({{ range $.Values.defaultRules.additionalAggregationLabels }}{{ . }},{{ end }}cluster, namespace, persistentvolumeclaim)
+        kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1
       for: {{ dig "KubePersistentVolumeFillingUp" "for" "1h" .Values.customRules }}
       {{- with .Values.defaultRules.keepFiringFor }}
       keep_firing_for: "{{ . }}"
@@ -116,12 +120,12 @@ spec:
         summary: PersistentVolumeInodes are filling up.
       expr: |-
         (
-          kubelet_volume_stats_inodes_free{job="kubelet", namespace=~"{{ $targetNamespace }}"}
+          kubelet_volume_stats_inodes_free{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}
             /
-          kubelet_volume_stats_inodes{job="kubelet", namespace=~"{{ $targetNamespace }}"}
+          kubelet_volume_stats_inodes{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}
         ) < 0.03
         and
-        kubelet_volume_stats_inodes_used{job="kubelet", namespace=~"{{ $targetNamespace }}"} > 0
+        kubelet_volume_stats_inodes_used{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"} > 0
         unless on ({{ range $.Values.defaultRules.additionalAggregationLabels }}{{ . }},{{ end }}cluster, namespace, persistentvolumeclaim)
         kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1
         unless on ({{ range $.Values.defaultRules.additionalAggregationLabels }}{{ . }},{{ end }}cluster, namespace, persistentvolumeclaim)
@@ -155,14 +159,14 @@ spec:
         summary: PersistentVolumeInodes are filling up.
       expr: |-
         (
-          kubelet_volume_stats_inodes_free{job="kubelet", namespace=~"{{ $targetNamespace }}"}
+          kubelet_volume_stats_inodes_free{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}
             /
-          kubelet_volume_stats_inodes{job="kubelet", namespace=~"{{ $targetNamespace }}"}
+          kubelet_volume_stats_inodes{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}
         ) < 0.15
         and
-        kubelet_volume_stats_inodes_used{job="kubelet", namespace=~"{{ $targetNamespace }}"} > 0
+        kubelet_volume_stats_inodes_used{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"} > 0
         and
-        predict_linear(kubelet_volume_stats_inodes_free{job="kubelet", namespace=~"{{ $targetNamespace }}"}[6h], 4 * 24 * 3600) < 0
+        predict_linear(kubelet_volume_stats_inodes_free{job="kubelet", namespace=~"{{ $targetNamespace }}", metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0
         unless on ({{ range $.Values.defaultRules.additionalAggregationLabels }}{{ . }},{{ end }}cluster, namespace, persistentvolumeclaim)
         kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1
         unless on ({{ range $.Values.defaultRules.additionalAggregationLabels }}{{ . }},{{ end }}cluster, namespace, persistentvolumeclaim)
