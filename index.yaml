@@ -68,7 +68,7 @@ entries:
     - https://github.com/prometheus-operator/kube-prometheus
     type: application
     urls:
-    - https://platform9.github.io/pf9-kube-prometheus-helm-chart/kube-prometheus-stack-62.7.0.tgz
+    - https://github.com/platform9/pf9-kube-prometheus-helm-chart/releases/download/kube-prometheus-stack-62.7.0/kube-prometheus-stack-62.7.0.tgz
     version: 62.7.0
   - annotations:
       artifacthub.io/license: Apache-2.0
