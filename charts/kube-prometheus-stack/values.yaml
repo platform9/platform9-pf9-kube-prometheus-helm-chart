@@ -185,7 +185,207 @@ defaultRules:
 
 ## Deprecated way to provide custom recording or alerting rules to be deployed into the cluster.
 ##
-# additionalPrometheusRules: []
+additionalPrometheusRules:
+- name: mgmt-cluster-nodes-alerts
+  groups:
+  - name: Node-Health-Alerts
+    rules:
+    - alert: kube-node-bad-condition
+      expr: kube_node_status_condition{job="kube-state-metrics",cluster!="",condition!="Ready",status="true"} != 0
+      for: 30m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: "Node {{ .Labels.node }} in cluster {{ .Labels.cluster }} has {{ .Labels.condition }} condition!"
+        description: "{{ .Labels.node }} in cluster {{ .Labels.cluster }} has been found tainted with a {{ .Labels.condition }} condition."
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+    - alert: kube-node-not-ready
+      expr: kube_node_status_condition{job="kube-state-metrics",cluster!="",condition="Ready",status="true"} == 0
+      for: 10m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: "Node {{ .Labels.node }} in cluster {{ .Labels.cluster }} NotReady!"
+        description: "{{ .Labels.node }} in cluster {{ .Labels.cluster }} has been found not to be in Ready state."
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+    - alert: node-exporter-down
+      expr: up{job="node-exporter",cluster!="",instance!=""} != 1
+      for: 30m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} no longer reporting in"
+        description: "{{ .Labels.instance }} in cluster {{ .Labels.cluster }} appears to have kicked the bucket for at least 5 minutes."
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+
+    - record: node:rootfs_free_space_pct
+      expr: |
+        node_filesystem_free_bytes{mountpoint="/",job="node-exporter",instance!=""}
+        / node_filesystem_size_bytes
+    # Node Resource Alerts
+    - alert: node-disk-space-low
+      expr: 'node:rootfs_free_space_pct * 100 < 7'
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: warning
+      annotations:
+        summary: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} rootfs free space low at less than 7 percent"
+        description: 'Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} rootfs free space at {{ .Value | printf "%.2f" }}%'
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+    - alert: node-disk-space-critically-low
+      expr: 'node:rootfs_free_space_pct * 100 < 5'
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} rootfs free space is critically low at less than 5 percent"
+        description: 'Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} rootfs free space at {{ .Value | printf "%.2f" }}%'
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.cortex-dev.platform9.horse/d/CW_g7t-Wk/cluster-resources?orgId=6&var-cluster={{ .Labels.cluster }}"
+    - alert: node-memory-low
+      expr: |
+        node_memory_MemAvailable_bytes{job="node-exporter",instance!=""} < 1024*1024*500
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: warning
+      annotations:
+        summary: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} available memory low at less than 500 megabytes"
+        description: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} available memory at {{ .Value | humanize1024 }}"
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.cortex-dev.platform9.horse/d/CW_g7t-Wk/cluster-resources?orgId=6&var-cluster={{ .Labels.cluster }}"
+    - alert: node-memory-critically-low
+      expr: |
+        node_memory_MemAvailable_bytes{job="node-exporter",cluster!="",instance!=""} < 1024*1024*200
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} available memory is critically low at less than 200 megabytes"
+        description: "Node {{ .Labels.instance }} in cluster {{ .Labels.cluster }} available memory at {{ .Value | humanize1024 }}"
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+    - alert: node-cpu-stolen
+      expr: |
+        (avg without (cpu)(rate(node_cpu_seconds_total{job="node-exporter",mode="steal",cluster!="",instance!=""}[5m]))) > 1.0
+      for: 30m
+      labels:
+        alert_scope: infrastructure
+        severity: system-degraded
+      annotations:
+        summary: "Cluster {{ .Labels.cluster }} node {{ .Labels.instance }} steal time is high"
+        description: 'Cluster {{ .Labels.cluster }} node {{ .Labels.instance }} steal time is at {{ .Value | printf "%.2f" }}%'
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+    - alert: node-load-avg
+      expr: |
+        (node_load1{cluster!="",instance!=""} / count(node_cpu_seconds_total{mode="idle",cluster!="",instance!=""}) without (cpu,mode) ) > 2
+      for: 30m
+      labels:
+        alert_scope: infrastructure
+        severity: system-degraded
+      annotations:
+        summary: "Cluster {{ .Labels.cluster }} node {{ .Labels.instance }} load avg high"
+        description: 'Cluster {{ .Labels.cluster }} node {{ .Labels.instance }} load avg is at {{ .Value | printf "%.2f" }}%'
+        runbook_url: "https://platform9.atlassian.net/wiki/spaces/OP/pages/641499898/Kubernetes+Cluster+Health+Alert+Runbook"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=3&var-cluster={{ .Labels.cluster }}"
+- name: mgmt-cluster-health-alerts
+  groups:
+  - name: pf9-kube-prometheus Rules
+    rules:
+        # k8s-prometheus pod in the cluster
+    - record: pmkft:cluster:pf9_kube_prometheus_ok
+      expr: >-2
+        sum by (cluster,pod) (
+            absent(up{job="pf9-prom-prometheus"})
+            OR
+            (up{job="pf9-prom-prometheus"}+2))
+        
+    - record: pmkft:cluster:pf9_kube_prometheus_ok_min2
+      expr: clamp_min(pmkft:cluster:pf9_kube_prometheus_ok, 2)
+
+      # pf9-kube-prometheus Alerts
+    - alert: pf9-kube-prometheus-flapping
+      expr: avg_over_time(pmkft:cluster:pf9_kube_prometheus_ok[30m]) < 2.5
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: Pf9-kube-prometheus (pod {{ .Labels.pod }}) flapping on cluster {{ .Labels.cluster }}
+        description: Pf9-kube-prometheus  Pod {{ .Labels.pod }} for Cluster-wide monitoring repeatedly going down on cluster {{ .Labels.cluster }}
+        runbook_url: https://platform9.atlassian.net/wiki/spaces/OP/pages/955711491/Chems+Runbook
+        dashboard_url: https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=2
+
+
+    - alert: pf9-kube-prometheus-pod-flapping
+      expr: prometheus_ready{job="prometheus", cluster!=""} != 1
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: Pf9-kube-prometheus (pod {{ .Labels.prometheus_replica }}) flapping on cluster {{ .Labels.cluster }}
+        description: Pf9-kube-prometheus  Pod {{ .Labels.prometheus_replica }} for Cluster-wide monitoring repeatedly going down on cluster {{ .Labels.cluster }}
+        runbook_url: https://platform9.atlassian.net/wiki/spaces/OP/pages/955711491/Chems+Runbook
+        dashboard_url: https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=2
+
+    # NOTE: each cluster needs its own rule or else absent() won't function properly
+    - alert: pf9-kube-prometheus operator down
+      expr: absent(up{job="pf9-prom-prometheus"} + 1) != 2
+      for: 20m
+      labels:
+        alert_scope: infrastructure
+        severity: critical
+      annotations:
+        summary: Pf9-kube-prometheus down on cluster {{ .Labels.cluster }}
+        description: Cluster-wide monitoring down on cluster {{ .Labels.cluster }}
+        runbook_url: https://platform9.atlassian.net/wiki/spaces/OP/pages/955711491/Chems+Runbook
+        dashboard_url: https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=2
+
+    # Cluster Health Alerts
+    - alert: cluster-disk-space
+      expr: |
+        sum by(cluster) (node_filesystem_free_bytes{cluster!="", job="node-exporter", mountpoint="/"})
+        < (
+          max by(cluster) (node_filesystem_size_bytes{cluster!="", job="node-exporter", mountpoint="/"})
+          * 1.05
+        )
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: system-degraded
+      annotations:
+        summary: "Cluster {{ .Labels.cluster }} free space low"
+        description: "Cluster {{ .Labels.cluster }} overall free space low"
+        runbook_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=2&refresh=1m&from=now-1h&to=now&var-cluster={{ .Labels.cluster }}"
+    - alert: cluster-memory
+      expr: |
+        sum by (cluster) (node_filesystem_avail_bytes{cluster!="", job="node-exporter", mountpoint="/"}) <
+        (
+          max by (cluster) (node_filesystem_size_bytes{cluster!="", job="node-exporter", mountpoint="/"})
+          * 1.05
+        )
+      for: 5m
+      labels:
+        alert_scope: infrastructure
+        severity: system-degraded
+      annotations:
+        summary: "Cluster {{ .Labels.cluster }} memory low"
+        description: "Cluster {{ .Labels.cluster }} overall memory low"
+        runbook_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        dashboard_url: "https://grafana.pf9cortex.platform9.net/d/CW_g7t-Wk/cluster-resources?orgId=2&refresh=1m&from=now-1h&to=now&var-cluster={{ .Labels.cluster }}"
 #  - name: my-rule-file
 #    groups:
 #      - name: my_group
