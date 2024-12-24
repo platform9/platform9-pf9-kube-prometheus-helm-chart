@@ -1,0 +1,29 @@
+# This is the override file to input any user specific data from values.yaml
+# helm install <releasename> <chart> -f values.yaml -f override.yaml
+prometheus:
+  prometheusSpec:
+    ## The remote_write spec configuration for Prometheus.
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#remotewritespec
+    remoteWrite: []
+
+    ## Resource limits & requests
+    ##
+    resources: {}
+    # requests:
+    #   memory: 400Mi
+
+
+alertmanager:
+  ## ExtraSecret can be used to store various data in an extra secret
+  ## (use it for example to store hashed basic auth credentials)
+  extraSecret:
+    ## if not set, name will be auto generated
+    # name: ""
+    annotations: {}
+    data: {}
+  
+#  config:
+#    global:
+#      resolve_timeout: 5m
+#      slack_api_url: <changeme>
+  
